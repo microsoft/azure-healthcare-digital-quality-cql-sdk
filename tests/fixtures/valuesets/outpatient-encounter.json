@@ -1,0 +1,22 @@
+{
+  "resourceType": "ValueSet",
+  "id": "outpatient-encounter",
+  "url": "http://cts.nlm.nih.gov/fhir/ValueSet/2.16.840.1.113883.3.464.1003.101.12.1061",
+  "version": "20210220",
+  "name": "OutpatientEncounter",
+  "title": "Outpatient Encounter",
+  "status": "active",
+  "expansion": {
+    "identifier": "urn:uuid:outpatient-encounter-fixture",
+    "timestamp": "2025-01-01T00:00:00Z",
+    "contains": [
+      {"system": "http://www.ama-assn.org/go/cpt", "code": "99202", "display": "Office or other outpatient visit, new"},
+      {"system": "http://www.ama-assn.org/go/cpt", "code": "99203", "display": "Office or other outpatient visit, new"},
+      {"system": "http://www.ama-assn.org/go/cpt", "code": "99211", "display": "Office or other outpatient visit, established"},
+      {"system": "http://www.ama-assn.org/go/cpt", "code": "99212", "display": "Office or other outpatient visit, established"},
+      {"system": "http://www.ama-assn.org/go/cpt", "code": "99213", "display": "Office or other outpatient visit, established"},
+      {"system": "http://www.ama-assn.org/go/cpt", "code": "99214", "display": "Office or other outpatient visit, established"},
+      {"system": "http://www.ama-assn.org/go/cpt", "code": "99215", "display": "Office or other outpatient visit, established"}
+    ]
+  }
+}

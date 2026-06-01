@@ -1,0 +1,12 @@
+{
+  "resourceType": "ValueSet",
+  "id": "frailty",
+  "url": "http://cts.nlm.nih.gov/fhir/ValueSet/2.16.840.1.113883.3.464.1003.1170.12.1001",
+  "name": "Frailty",
+  "status": "active",
+  "expansion": {
+    "contains": [
+      {"system": "http://hl7.org/fhir/sid/icd-10-cm", "code": "R54", "display": "Age-related physical debility"}
+    ]
+  }
+}

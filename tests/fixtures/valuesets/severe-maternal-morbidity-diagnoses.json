@@ -1,0 +1,15 @@
+{
+  "resourceType": "ValueSet",
+  "id": "severe-maternal-morbidity-diagnoses",
+  "url": "http://cts.nlm.nih.gov/fhir/ValueSet/2.16.840.1.113762.1.4.1029.54",
+  "name": "SevereMaternalMorbidityDiagnoses",
+  "status": "active",
+  "expansion": {
+    "contains": [
+      {"system": "http://hl7.org/fhir/sid/icd-10-cm", "code": "O15.9", "display": "Eclampsia, unspecified as to time period"},
+      {"system": "http://hl7.org/fhir/sid/icd-10-cm", "code": "R57.0", "display": "Cardiogenic shock"},
+      {"system": "http://hl7.org/fhir/sid/icd-10-cm", "code": "A41.9", "display": "Sepsis, unspecified organism"},
+      {"system": "http://hl7.org/fhir/sid/icd-10-cm", "code": "N17.9", "display": "Acute kidney failure, unspecified"}
+    ]
+  }
+}
