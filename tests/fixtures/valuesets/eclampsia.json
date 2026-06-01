@@ -1,0 +1,15 @@
+{
+  "resourceType": "ValueSet",
+  "id": "eclampsia",
+  "url": "http://cts.nlm.nih.gov/fhir/ValueSet/2.16.840.1.113762.1.4.1029.69",
+  "name": "Eclampsia",
+  "status": "active",
+  "expansion": {
+    "contains": [
+      {"system": "http://hl7.org/fhir/sid/icd-10-cm", "code": "O15.9", "display": "Eclampsia, unspecified as to time period"},
+      {"system": "http://hl7.org/fhir/sid/icd-10-cm", "code": "O15.00", "display": "Eclampsia complicating pregnancy"},
+      {"system": "http://hl7.org/fhir/sid/icd-10-cm", "code": "O15.1", "display": "Eclampsia complicating labor"},
+      {"system": "http://hl7.org/fhir/sid/icd-10-cm", "code": "O15.2", "display": "Eclampsia complicating the puerperium"}
+    ]
+  }
+}

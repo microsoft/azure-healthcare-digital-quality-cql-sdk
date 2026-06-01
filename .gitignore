@@ -1,0 +1,45 @@
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.token
+# Build artifacts
+build/
+dist/
+*.egg-info/
+.eggs/
+.wheels/
+
+# Virtual envs
+.venv/
+venv/
+env/
+
+# uv / pip
+.uv/
+pip-wheel-metadata/
+
+# Tests / coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+.mypy_cache/
+.ruff_cache/
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+.DS_Store
+
+# Docs build
+site/
+
+# Local data
+*.log
+.cache/
+.tmp/
+.history

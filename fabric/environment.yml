@@ -1,0 +1,17 @@
+# Microsoft Fabric environment manifest for cql-sdk
+#
+# Upload this file to: Fabric workspace -> Environment -> External repositories
+# (YML editor view). It declares the PyPI dependencies required by the cql-sdk
+# wheel. Upload the wheel itself under "Custom libraries".
+#
+# Notes:
+# - pyspark is provided by the Fabric Spark runtime; do NOT list it here.
+# - fhir.resources is optional; uncomment if you use cql_sdk.fhir.
+# - Versions mirror the lower bounds in pyproject.toml.
+dependencies:
+  - pip:
+      - typer>=0.12
+      - rich>=13.7
+      - pydantic>=2.7
+      - python-dateutil>=2.9
+      # - fhir.resources>=7.1   # uncomment if using cql_sdk.fhir

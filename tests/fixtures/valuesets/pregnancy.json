@@ -1,0 +1,12 @@
+{
+  "resourceType": "ValueSet",
+  "id": "pregnancy",
+  "url": "http://cts.nlm.nih.gov/fhir/ValueSet/2.16.840.1.113883.3.464.1003.111.12.1012",
+  "name": "Pregnancy",
+  "status": "active",
+  "expansion": {
+    "contains": [
+      {"system": "http://hl7.org/fhir/sid/icd-10-cm", "code": "Z34.00", "display": "Supervision of pregnancy"}
+    ]
+  }
+}

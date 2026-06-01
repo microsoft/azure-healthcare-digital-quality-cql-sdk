@@ -1,0 +1,12 @@
+{
+  "resourceType": "ValueSet",
+  "id": "severe-maternal-morbidity-procedures",
+  "url": "http://cts.nlm.nih.gov/fhir/ValueSet/2.16.840.1.113762.1.4.1029.56",
+  "name": "SevereMaternalMorbidityProcedures",
+  "status": "active",
+  "expansion": {
+    "contains": [
+      {"system": "http://www.cms.gov/Medicare/Coding/ICD10", "code": "30233N1", "display": "Transfusion of nonautologous red blood cells into peripheral vein, percutaneous approach"}
+    ]
+  }
+}

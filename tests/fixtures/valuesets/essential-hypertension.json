@@ -1,0 +1,20 @@
+{
+  "resourceType": "ValueSet",
+  "id": "essential-hypertension",
+  "url": "http://cts.nlm.nih.gov/fhir/ValueSet/2.16.840.1.113883.3.464.1003.104.12.1011",
+  "version": "20210219",
+  "name": "EssentialHypertension",
+  "title": "Essential Hypertension",
+  "status": "active",
+  "expansion": {
+    "identifier": "urn:uuid:essential-hypertension-fixture",
+    "timestamp": "2025-01-01T00:00:00Z",
+    "contains": [
+      {
+        "system": "http://hl7.org/fhir/sid/icd-10-cm",
+        "code": "I10",
+        "display": "Essential (primary) hypertension"
+      }
+    ]
+  }
+}

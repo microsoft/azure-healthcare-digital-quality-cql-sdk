@@ -1,0 +1,12 @@
+{
+  "resourceType": "ValueSet",
+  "id": "hospice-care",
+  "url": "http://cts.nlm.nih.gov/fhir/ValueSet/2.16.840.1.113883.3.464.1003.1048.12.1001",
+  "name": "HospiceCare",
+  "status": "active",
+  "expansion": {
+    "contains": [
+      {"system": "http://snomed.info/sct", "code": "305336008", "display": "Admission to hospice"}
+    ]
+  }
+}
