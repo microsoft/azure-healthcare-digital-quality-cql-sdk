@@ -15,7 +15,7 @@ data platforms (standalone, containers, PySpark, Microsoft Fabric).
 
 ## Disclaimer
 
-This SDK is provided as-is under the Apache-2.0 license. It is a general
+This SDK is provided as-is under the MIT license. It is a general
 purpose CQL/ELM execution toolkit and does not include or grant any rights
 to third-party measure specifications, value sets, or code systems.
 
@@ -28,6 +28,11 @@ licensing terms.
 The same applies to other proprietary measure stewards (for example, CMS
 eCQM artifacts may have their own usage terms, and any LOINC, SNOMED CT,
 RxNorm, ICD, or CPT content carries its own licensing).
+
+## What's new in 0.4.3
+
+- License changed from Apache-2.0 to MIT.
+- Added Origins and Attribution, Acknowledgements, and Relationship to Firely CQL SDK sections to README.
 
 ## What's new in 0.4.2
 
@@ -213,9 +218,40 @@ See [docs/development.md](docs/development.md) for more.
 
 ## License
 
-Apache-2.0. See [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).
 
 This license covers the SDK source code only. It does **not** grant rights
 to HEDIS&reg; measure specifications (license from NCQA required for
 production use, see the [Disclaimer](#disclaimer) section), nor to any
 third-party terminology content (LOINC, SNOMED CT, RxNorm, ICD, CPT, etc.).
+
+## Origins and Attribution
+
+This project was inspired by and derived from concepts demonstrated in the Firely and NCQA CQL SDK project:
+
+- <https://github.com/FirelyTeam/firely-cql-sdk>
+
+The Firely CQL SDK is NCQA's and Firely's official SDK for working with Clinical Quality Language (CQL) on the .NET platform.
+
+The Microsoft Azure Healthcare Digital Quality CQL SDK extends these concepts to support additional healthcare analytics scenarios, including cloud-native execution patterns, Python interoperability, Spark/Fabric integration, and Azure-based deployment models.
+
+We are grateful to Firely and NCQA for their contributions to the CQL ecosystem and for advancing interoperable clinical quality measurement technologies.
+
+The original Firely project and its contributors retain ownership of their respective intellectual property and code contributions. Please refer to the upstream repository for additional details and licensing information.
+
+## Relationship to Firely CQL SDK
+
+This project is not a drop-in replacement for the Firely CQL SDK.
+
+While portions of the architecture, compiler design concepts, and CQL execution patterns were informed by the Firely implementation, this SDK introduces additional capabilities focused on analytics, distributed execution, cloud-native deployment, and modern healthcare data platform integration.
+
+## Acknowledgements
+
+Special thanks to:
+
+- Firely
+- NCQA
+- HL7 Clinical Quality Language (CQL) Community
+- FHIR Community Contributors
+
+for advancing standards-based clinical quality measurement and interoperability.
