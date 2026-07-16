@@ -38,6 +38,8 @@ class Library:
     value_sets: dict[str, dict[str, Any]] = field(default_factory=dict)
     code_systems: dict[str, dict[str, Any]] = field(default_factory=dict)
     codes: dict[str, dict[str, Any]] = field(default_factory=dict)
+    function_operands: dict[str, list[str]] = field(default_factory=dict)
+    """Ordered operand (parameter) names for each function definition."""
     raw: dict[str, Any] = field(default_factory=dict)
     """The original parsed JSON, preserved for pass-through scenarios."""
 

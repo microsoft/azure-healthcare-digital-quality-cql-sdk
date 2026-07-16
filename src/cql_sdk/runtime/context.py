@@ -42,6 +42,7 @@ class RuntimeContext:
     library_registry: LibraryRegistry | None = None
     _alias_stack: list[dict[str, Any]] = field(default_factory=list, repr=False)
     _let_stack: list[dict[str, Any]] = field(default_factory=list, repr=False)
+    _operand_stack: list[dict[str, Any]] = field(default_factory=list, repr=False)
     _cache: dict[str, Any] = field(default_factory=dict, repr=False)
 
     # --- construction helpers -------------------------------------------
@@ -109,6 +110,20 @@ class RuntimeContext:
                 return frame[name]
         raise KeyError(f"Let binding '{name}' not in scope")
 
+    # --- operand (function parameter) scopes -----------------------------
+
+    def push_operand_frame(self, frame: dict[str, Any]) -> None:
+        self._operand_stack.append(frame)
+
+    def pop_operand_frame(self) -> None:
+        self._operand_stack.pop()
+
+    def lookup_operand(self, name: str) -> Any:
+        for frame in reversed(self._operand_stack):
+            if name in frame:
+                return frame[name]
+        raise KeyError(f"Operand '{name}' not in scope")
+
     # --- cross-library evaluation ----------------------------------------
 
     def evaluate_in_library(self, library_identifier: str, definition: str) -> Any:
@@ -125,6 +140,49 @@ class RuntimeContext:
             self.library = other
             self._cache = {}
             return self.evaluate_definition(definition)
+        finally:
+            self.library = saved_library
+            self._cache = saved_cache
+
+    # --- user-defined function evaluation --------------------------------
+
+    def evaluate_function(self, name: str, args: list[Any]) -> Any:
+        """Evaluate a same-library function, binding ``args`` to its operands.
+
+        Unlike :meth:`evaluate_definition`, function results are never cached
+        (they depend on the argument values), and the alias/let scopes are
+        isolated so the function body sees only its own operands.
+        """
+        if self.library is None:
+            raise RuntimeError("RuntimeContext has no library attached.")
+        definition = self.library.get_definition(name)
+        params = getattr(self.library, "function_operands", {}).get(name, [])
+        frame = {p: (args[i] if i < len(args) else None) for i, p in enumerate(params)}
+        saved_alias, saved_let = self._alias_stack, self._let_stack
+        self._alias_stack, self._let_stack = [], []
+        self.push_operand_frame(frame)
+        try:
+            return self.evaluate(definition.expression)
+        finally:
+            self.pop_operand_frame()
+            self._alias_stack, self._let_stack = saved_alias, saved_let
+
+    def evaluate_function_in_library(
+        self, library_identifier: str, name: str, args: list[Any]
+    ) -> Any:
+        """Evaluate a function defined in another registered library."""
+        if self.library_registry is None:
+            raise RuntimeError(
+                "RuntimeContext has no library_registry; cannot resolve cross-library "
+                f"function '{library_identifier}.{name}'."
+            )
+        other = self.library_registry.get(library_identifier)
+        saved_library = self.library
+        saved_cache = self._cache
+        try:
+            self.library = other
+            self._cache = {}
+            return self.evaluate_function(name, args)
         finally:
             self.library = saved_library
             self._cache = saved_cache

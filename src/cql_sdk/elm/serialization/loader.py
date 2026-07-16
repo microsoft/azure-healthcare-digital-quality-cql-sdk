@@ -47,6 +47,15 @@ def _build_library(raw: dict[str, Any]) -> Library:
         for p in compatibility.iter_parameters(body)
         if isinstance(p.get("name"), str)
     }
+    function_operands = {
+        d["name"]: [
+            str(op.get("name"))
+            for op in d.get("operand", [])
+            if isinstance(op, dict) and isinstance(op.get("name"), str)
+        ]
+        for d in compatibility.iter_statements(body)
+        if isinstance(d.get("name"), str) and isinstance(d.get("operand"), list)
+    }
     includes = [
         LibraryIdentifier(id=str(i.get("path", i.get("localIdentifier", ""))), version=i.get("version"))
         for i in compatibility.iter_includes(body)
@@ -64,6 +73,7 @@ def _build_library(raw: dict[str, Any]) -> Library:
         value_sets=value_sets,
         code_systems=code_systems,
         codes=codes,
+        function_operands=function_operands,
         raw=raw,
     )
 
