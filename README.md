@@ -29,6 +29,18 @@ The same applies to other proprietary measure stewards (for example, CMS
 eCQM artifacts may have their own usage terms, and any LOINC, SNOMED CT,
 RxNorm, ICD, or CPT content carries its own licensing).
 
+## What's new in 0.5.0
+
+- **DQM (FHIR / QI-Core) measure package evaluation** via the new
+  [`cql_sdk.dqm`](src/cql_sdk/dqm) package: a FHIR `Measure` resource model,
+  QI-Core profile model-info, an ELM-first multi-library `MeasurePackage`
+  loader, and proportion scoring for both patient (`boolean`) and
+  episode-of-care (`Encounter`) basis.
+- Runtime additions: list set operations (`Union` / `Except` / `Intersect`),
+  value-set membership (`InValueSet` / `AnyInValueSet`), user-defined function
+  parameter binding (`OperandRef`), and query `with` / `without` relationships.
+- New public API: `load_measure_package` / `evaluate_measure_package`.
+
 ## What's new in 0.4.3
 
 - License changed from Apache-2.0 to MIT.
