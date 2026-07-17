@@ -178,10 +178,13 @@ def _coding_code(codeable: Any) -> str | None:
     coding = codeable.get("coding")
     if isinstance(coding, list):
         for c in coding:
-            if isinstance(c, dict) and isinstance(c.get("code"), str):
-                return c["code"]
-    if isinstance(codeable.get("code"), str):
-        return codeable["code"]
+            if isinstance(c, dict):
+                code = c.get("code")
+                if isinstance(code, str):
+                    return code
+    code = codeable.get("code")
+    if isinstance(code, str):
+        return code
     return None
 
 
@@ -192,8 +195,10 @@ def _value_code(value: Any) -> str | None:
 
 
 def _criteria_expression(criteria: Any) -> str | None:
-    if isinstance(criteria, dict) and isinstance(criteria.get("expression"), str):
-        return criteria["expression"]
+    if isinstance(criteria, dict):
+        expression = criteria.get("expression")
+        if isinstance(expression, str):
+            return expression
     if isinstance(criteria, str):
         return criteria
     return None
@@ -204,8 +209,10 @@ def _extension_value_code(extensions: Any, url: str) -> str | None:
         return None
     for ext in extensions:
         if isinstance(ext, dict) and ext.get("url") == url:
-            if isinstance(ext.get("valueCode"), str):
-                return ext["valueCode"]
-            if isinstance(ext.get("valueString"), str):
-                return ext["valueString"]
+            value_code = ext.get("valueCode")
+            if isinstance(value_code, str):
+                return value_code
+            value_string = ext.get("valueString")
+            if isinstance(value_string, str):
+                return value_string
     return None
