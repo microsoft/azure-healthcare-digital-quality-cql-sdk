@@ -57,6 +57,10 @@ class StaticTerminologyProvider:
                 continue
             self._ingest(payload)
 
+    def ingest(self, resource: Any) -> None:
+        """Index a single FHIR ``ValueSet`` or ``Bundle`` of value sets."""
+        self._ingest(resource)
+
     def _ingest(self, payload: Any) -> None:
         if not isinstance(payload, dict):
             return

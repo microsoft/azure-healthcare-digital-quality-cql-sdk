@@ -383,6 +383,56 @@ def _op_coalesce(ctx: RuntimeContext, node: ElmNode) -> Any:
     return None
 
 
+# --- list set operations --------------------------------------------------
+
+
+def _as_list(value: Any) -> list[Any]:
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return [v for v in value if v is not None]
+    return [value]
+
+
+def _contains_equal(items: list[Any], target: Any) -> bool:
+    for it in items:
+        try:
+            if it == target:
+                return True
+        except Exception:  # pragma: no cover - defensive: unorderable types
+            continue
+    return False
+
+
+def _op_union(ctx: RuntimeContext, node: ElmNode) -> list[Any]:
+    a, b = _operands(ctx, node)
+    out: list[Any] = []
+    for item in _as_list(a) + _as_list(b):
+        if not _contains_equal(out, item):
+            out.append(item)
+    return out
+
+
+def _op_except(ctx: RuntimeContext, node: ElmNode) -> list[Any]:
+    a, b = _operands(ctx, node)
+    right = _as_list(b)
+    out: list[Any] = []
+    for item in _as_list(a):
+        if not _contains_equal(right, item) and not _contains_equal(out, item):
+            out.append(item)
+    return out
+
+
+def _op_intersect(ctx: RuntimeContext, node: ElmNode) -> list[Any]:
+    a, b = _operands(ctx, node)
+    right = _as_list(b)
+    out: list[Any] = []
+    for item in _as_list(a):
+        if _contains_equal(right, item) and not _contains_equal(out, item):
+            out.append(item)
+    return out
+
+
 # --- quantity literal -----------------------------------------------------
 
 
@@ -672,7 +722,105 @@ def _op_in(ctx: RuntimeContext, node: ElmNode) -> bool | None:
     return None
 
 
-# --- references -----------------------------------------------------------
+# --- value set membership -------------------------------------------------
+
+
+def _resolve_valueset_field(ctx: RuntimeContext, vs_field: Any) -> ValueSetRef | None:
+    """Resolve a ``valueset`` node field to a :class:`ValueSetRef`.
+
+    Handles both same-library and cross-library (``libraryName``) references.
+    """
+    if isinstance(vs_field, ValueSetRef):
+        return vs_field
+    if not isinstance(vs_field, dict):
+        return None
+    name = vs_field.get("name")
+    if not isinstance(name, str):
+        return None
+    lib_name = vs_field.get("libraryName")
+    if lib_name:
+        target = _find_included_library(ctx, lib_name)
+        if target and ctx.library_registry is not None and ctx.library_registry.has(target):
+            defn = ctx.library_registry.get(target).value_sets.get(name)
+            if defn:
+                return ValueSetRef(id=str(defn.get("id", name)), version=defn.get("version"))
+        return None
+    if ctx.library is not None:
+        defn = ctx.library.value_sets.get(name)
+        if defn:
+            return ValueSetRef(id=str(defn.get("id", name)), version=defn.get("version"))
+    return None
+
+
+def _codes_from_value(value: Any) -> list[Code]:
+    """Extract all CQL Codes from a Code, Concept (coding[]), string, or list."""
+    out: list[Code] = []
+    if value is None:
+        return out
+    if isinstance(value, list):
+        for v in value:
+            out.extend(_codes_from_value(v))
+        return out
+    if isinstance(value, Code):
+        return [value]
+    if isinstance(value, dict) and isinstance(value.get("coding"), list):
+        for coding in value["coding"]:
+            code = _to_code(coding)
+            if code is not None:
+                out.append(code)
+        return out
+    code = _to_code(value)
+    if code is not None:
+        out.append(code)
+    return out
+
+
+def _resolve_valueset_operand(ctx: RuntimeContext, node: ElmNode) -> ValueSetRef | None:
+    vs = _resolve_valueset_field(ctx, node.get("valueset"))
+    if vs is not None:
+        return vs
+    vs_expr = node.get("valueset")
+    if isinstance(vs_expr, dict) and vs_expr.get("type"):
+        evaluated = _eval_child(ctx, vs_expr)
+        if isinstance(evaluated, ValueSetRef):
+            return evaluated
+    return None
+
+
+def _op_in_value_set(ctx: RuntimeContext, node: ElmNode) -> bool | None:
+    code_expr = node.get("code")
+    if code_expr is None:
+        ops = node.get("operand")
+        if isinstance(ops, list) and ops:
+            code_expr = ops[0]
+        elif ops is not None:
+            code_expr = ops
+    value = _eval_child(ctx, code_expr)
+    vs = _resolve_valueset_operand(ctx, node)
+    if vs is None or ctx.terminology is None:
+        return None
+    codes = _codes_from_value(value)
+    if not codes:
+        return None
+    return any(ctx.terminology.in_value_set(c, vs) for c in codes)
+
+
+def _op_any_in_value_set(ctx: RuntimeContext, node: ElmNode) -> bool | None:
+    codes_expr = node.get("codes")
+    if codes_expr is None:
+        ops = node.get("operand")
+        if isinstance(ops, list) and ops:
+            codes_expr = ops[0]
+        elif ops is not None:
+            codes_expr = ops
+    value = _eval_child(ctx, codes_expr)
+    vs = _resolve_valueset_operand(ctx, node)
+    if vs is None or ctx.terminology is None:
+        return None
+    codes = _codes_from_value(value)
+    if not codes:
+        return None
+    return any(ctx.terminology.in_value_set(c, vs) for c in codes)
 
 
 def _op_expression_ref(ctx: RuntimeContext, node: ElmNode) -> Any:
@@ -735,6 +883,17 @@ def _op_query_let_ref(ctx: RuntimeContext, node: ElmNode) -> Any:
         return None
     try:
         return ctx.lookup_let(name)
+    except KeyError:
+        return None
+
+
+def _op_operand_ref(ctx: RuntimeContext, node: ElmNode) -> Any:
+    """Resolve a reference to a user-defined function parameter (operand)."""
+    name = node.get("name")
+    if not isinstance(name, str):
+        return None
+    try:
+        return ctx.lookup_operand(name)
     except KeyError:
         return None
 
@@ -897,6 +1056,7 @@ def _op_query(ctx: RuntimeContext, node: ElmNode) -> Any:
     sort_node = node.get("sort") if isinstance(node.get("sort"), dict) else None
     return_node = node.get("return") if isinstance(node.get("return"), dict) else None
     let_nodes = node.get("let") or []
+    relationships = node.get("relationship") or []
 
     def iter_combinations(idx: int, frame: dict[str, Any]) -> Iterator[dict[str, Any]]:
         if idx == len(alias_pairs):
@@ -921,6 +1081,8 @@ def _op_query(ctx: RuntimeContext, node: ElmNode) -> Any:
             keep = True
             if where_node is not None:
                 keep = _eval_child(ctx, where_node) is True
+            if keep and relationships:
+                keep = _eval_query_relationships(ctx, relationships)
             if keep:
                 filtered.append(dict(combo))
         finally:
@@ -983,6 +1145,40 @@ def _op_query(ctx: RuntimeContext, node: ElmNode) -> Any:
     return filtered
 
 
+def _eval_query_relationships(ctx: RuntimeContext, relationships: list[Any]) -> bool:
+    """Evaluate ``with``/``without`` query relationships for the active combo.
+
+    The outer query's alias frame is already on the stack; each relationship
+    pushes its own alias while testing ``suchThat``.
+    """
+    for rel in relationships:
+        if not isinstance(rel, dict):
+            continue
+        rtype = rel.get("type")
+        alias = str(rel.get("alias", ""))
+        items = _eval_child(ctx, rel.get("expression"))
+        if items is None:
+            items = []
+        elif not isinstance(items, list):
+            items = [items]
+        such_that = rel.get("suchThat")
+        found = False
+        for item in items:
+            ctx.push_alias_frame({alias: item})
+            try:
+                ok = True if such_that is None else (_eval_child(ctx, such_that) is True)
+            finally:
+                ctx.pop_alias_frame()
+            if ok:
+                found = True
+                break
+        if rtype == "With" and not found:
+            return False
+        if rtype == "Without" and found:
+            return False
+    return True
+
+
 def _op_function_ref(ctx: RuntimeContext, node: ElmNode) -> Any:
     name = str(node.get("name") or "")
     lib_name = node.get("libraryName")
@@ -1020,10 +1216,12 @@ def _op_function_ref(ctx: RuntimeContext, node: ElmNode) -> Any:
     if lib_name and ctx.library_registry is not None:
         target_id = _find_included_library(ctx, lib_name)
         if target_id and ctx.library_registry.has(target_id):
-            return ctx.evaluate_in_library(target_id, name)
+            other = ctx.library_registry.get(target_id)
+            if other.has_definition(name):
+                return ctx.evaluate_function_in_library(target_id, name, arg_vals)
 
     if ctx.library is not None and ctx.library.has_definition(name):
-        return ctx.evaluate_definition(name)
+        return ctx.evaluate_function(name, arg_vals)
 
     return arg_vals[0] if arg_vals else None
 
@@ -1105,6 +1303,10 @@ def register_builtins(registry: DefaultOperatorRegistry) -> None:
         "Length": _op_length,
         "Flatten": _op_flatten,
         "Coalesce": _op_coalesce,
+        # list set operations
+        "Union": _op_union,
+        "Except": _op_except,
+        "Intersect": _op_intersect,
         # quantity
         "Quantity": _op_quantity,
         # date / time / age
@@ -1126,6 +1328,8 @@ def register_builtins(registry: DefaultOperatorRegistry) -> None:
         "Before": _op_before,
         "After": _op_after,
         "In": _op_in,
+        "InValueSet": _op_in_value_set,
+        "AnyInValueSet": _op_any_in_value_set,
         # references
         "ExpressionRef": _op_expression_ref,
         "ParameterRef": _op_parameter_ref,
@@ -1133,6 +1337,7 @@ def register_builtins(registry: DefaultOperatorRegistry) -> None:
         "AliasedQuerySource": _op_aliased_query_source,
         "LetClause": _op_aliased_query_source,
         "QueryLetRef": _op_query_let_ref,
+        "OperandRef": _op_operand_ref,
         "CodeRef": _op_code_ref,
         "CodeSystemRef": _op_code_system_ref,
         "ValueSetRef": _op_value_set_ref,
