@@ -481,6 +481,29 @@ def _op_date_from(ctx: RuntimeContext, node: ElmNode) -> Any:
     return None
 
 
+def _op_now(ctx: RuntimeContext, _node: ElmNode) -> datetime:
+    """``Now()`` — the engine execution timestamp, as a naive datetime."""
+    now = ctx.now
+    return now.replace(tzinfo=None) if now.tzinfo is not None else now
+
+
+def _op_today(ctx: RuntimeContext, _node: ElmNode) -> date:
+    """``Today()`` — the date portion of the engine execution timestamp."""
+    return ctx.now.date()
+
+
+def _op_duration_between(ctx: RuntimeContext, node: ElmNode) -> int | None:
+    """``duration in <precision> between a and b`` — completed periods."""
+    a, b = _operands(ctx, node)
+    return _periods_between(a, b, str(node.get("precision") or "").lower(), difference=False)
+
+
+def _op_difference_between(ctx: RuntimeContext, node: ElmNode) -> int | None:
+    """``difference in <precision> between a and b`` — boundary count."""
+    a, b = _operands(ctx, node)
+    return _periods_between(a, b, str(node.get("precision") or "").lower(), difference=True)
+
+
 def _op_calculate_age_at(ctx: RuntimeContext, node: ElmNode) -> int | None:
     operands = _operands(ctx, node)
     # CQL's ``AgeInYearsAt(asof)`` translates to a single-operand
@@ -963,12 +986,13 @@ def _op_as(ctx: RuntimeContext, node: ElmNode) -> Any:
 
     if operand is None:
         return None
-    if "Quantity" in as_type_name and isinstance(operand, dict) and "value" in operand:
+    low_type = as_type_name.lower()
+    if "quantity" in low_type and isinstance(operand, dict) and "value" in operand:
         return _fhir_dict_to_quantity(operand)
-    if ("DateTime" in as_type_name or "Date" in as_type_name) and isinstance(operand, str):
+    if ("datetime" in low_type or "date" in low_type) and isinstance(operand, str):
         return _parse_dt(operand)
     if (
-        "Period" in as_type_name
+        "period" in low_type
         and isinstance(operand, dict)
         and ("start" in operand or "end" in operand)
     ):
@@ -1313,8 +1337,12 @@ def register_builtins(registry: DefaultOperatorRegistry) -> None:
         "Date": _op_date,
         "DateTime": _op_datetime,
         "DateFrom": _op_date_from,
+        "Now": _op_now,
+        "Today": _op_today,
         "CalculateAge": _op_calculate_age,
         "CalculateAgeAt": _op_calculate_age_at,
+        "DurationBetween": _op_duration_between,
+        "DifferenceBetween": _op_difference_between,
         # interval / membership
         "Start": _op_start,
         "End": _op_end,
@@ -1611,6 +1639,67 @@ def _age_in(birth: Any, asof: Any, precision: str) -> int | None:
     if precision in ("day", "days"):
         return (asof - birth).days
     return asof.year - birth.year
+
+
+def _normalize_temporal(value: Any) -> date | datetime | None:
+    """Coerce a value to a naive ``date``/``datetime`` for temporal math."""
+    if isinstance(value, str):
+        value = _parse_dt(value)
+    if isinstance(value, datetime) and value.tzinfo is not None:
+        value = value.replace(tzinfo=None)
+    if isinstance(value, (date, datetime)):
+        return value
+    return None
+
+
+def _trunc_div(n: int, d: int) -> int:
+    """Integer division truncated toward zero (CQL duration semantics)."""
+    q = abs(n) // abs(d)
+    return q if (n >= 0) == (d > 0) else -q
+
+
+def _as_date(value: date | datetime) -> date:
+    return value.date() if isinstance(value, datetime) else value
+
+
+def _completed_calendar_units(a: date, b: date, months_per_unit: int) -> int:
+    """Completed year (12) or month (1) units between two dates, signed."""
+    sign, lo, hi = (1, a, b) if a <= b else (-1, b, a)
+    total_months = (hi.year - lo.year) * 12 + (hi.month - lo.month)
+    if hi.day < lo.day:
+        total_months -= 1
+    return sign * (total_months // months_per_unit)
+
+
+def _periods_between(a: Any, b: Any, precision: str, *, difference: bool) -> int | None:
+    a = _normalize_temporal(a)
+    b = _normalize_temporal(b)
+    if a is None or b is None:
+        return None
+    if precision in ("year", "years"):
+        if difference:
+            return _as_date(b).year - _as_date(a).year
+        return _completed_calendar_units(_as_date(a), _as_date(b), 12)
+    if precision in ("month", "months"):
+        ad, bd = _as_date(a), _as_date(b)
+        if difference:
+            return (bd.year - ad.year) * 12 + (bd.month - ad.month)
+        return _completed_calendar_units(ad, bd, 1)
+    days = (_as_date(b) - _as_date(a)).days
+    if precision in ("week", "weeks"):
+        return _trunc_div(days, 7)
+    if precision in ("day", "days"):
+        return days
+    a_dt = a if isinstance(a, datetime) else datetime(a.year, a.month, a.day)
+    b_dt = b if isinstance(b, datetime) else datetime(b.year, b.month, b.day)
+    seconds = (b_dt - a_dt).total_seconds()
+    if precision in ("hour", "hours"):
+        return int(seconds / 3600)
+    if precision in ("minute", "minutes"):
+        return int(seconds / 60)
+    if precision in ("second", "seconds"):
+        return int(seconds)
+    return None
 
 
 def _resolve_cross_library(ctx: RuntimeContext, lib_name: str, def_name: str) -> Any:

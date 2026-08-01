@@ -45,6 +45,7 @@ KEYWORDS: frozenset[str] = frozenset({
     "and",
     "as",
     "before",
+    "between",
     "by",
     "called",
     "case",
@@ -105,9 +106,12 @@ _PUNCT_CHARS = set(".,:;()[]{}")
 # Multi-char operators tried first (longer match wins).
 _OPERATORS = ("!=", "<=", ">=", "=", "<", ">", "~", "+", "-", "*", "/")
 
-# DateTime literal pattern, anchored at @.
+# DateTime literal pattern, anchored at @. The optional trailing group after
+# the time component captures a timezone offset: ``Z`` (Zulu / UTC) or a signed
+# ``+hh:mm`` / ``-hh:mm`` offset, matching the CQL 1.5 DateTime literal grammar.
 _DATETIME_RE = re.compile(
-    r"@(\d{4}(?:-\d{2}(?:-\d{2}(?:T\d{2}(?::\d{2}(?::\d{2}(?:\.\d+)?)?)?)?)?)?)"
+    r"@(\d{4}(?:-\d{2}(?:-\d{2}"
+    r"(?:T\d{2}(?::\d{2}(?::\d{2}(?:\.\d+)?)?)?(?:Z|[+-]\d{2}:\d{2})?)?)?)?)"
 )
 
 # Integer / decimal numbers.

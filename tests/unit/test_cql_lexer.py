@@ -51,3 +51,24 @@ def test_tokenize_multi_char_operators():
     tokens = tokenize("a <= b != c >= d")
     op_values = [t.value for t in tokens if t.kind is TokenKind.OP]
     assert op_values == ["<=", "!=", ">="]
+
+
+@pytest.mark.unit
+def test_tokenize_datetime_with_timezone_offsets():
+    # Zulu, positive and negative offsets are all a single DATETIME token.
+    for src in (
+        "@2026-01-01T00:00:00Z",
+        "@2026-06-01T12:30:00.500+05:30",
+        "@2026-03-01T08:00:00-05:00",
+    ):
+        tokens = [t for t in tokenize(src) if t.kind is not TokenKind.EOF]
+        assert len(tokens) == 1, src
+        assert tokens[0].kind is TokenKind.DATETIME
+        assert tokens[0].value == src
+
+
+@pytest.mark.unit
+def test_tokenize_between_is_keyword():
+    tokens = [t for t in tokenize("x between 1 and 2") if t.kind is not TokenKind.EOF]
+    assert tokens[1].kind is TokenKind.KEYWORD
+    assert tokens[1].value == "between"

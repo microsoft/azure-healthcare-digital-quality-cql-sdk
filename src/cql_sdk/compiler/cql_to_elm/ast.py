@@ -64,6 +64,9 @@ class DateTimeLit(Expr):
     minute: int | None = None
     second: int | None = None
     millisecond: int | None = None
+    # Timezone offset in hours (as decimal text, e.g. "0", "-5", "5.5"); None
+    # when the literal carries no timezone component.
+    timezone_offset: str | None = None
 
 
 @dataclass(slots=True)
@@ -126,6 +129,57 @@ class DurationOf(Expr):
 
     precision: str
     operand: Expr
+
+
+@dataclass(slots=True)
+class DurationBetween(Expr):
+    """``duration in <precision> between <start> and <end>``."""
+
+    precision: str
+    left: Expr
+    right: Expr
+
+
+@dataclass(slots=True)
+class DifferenceBetween(Expr):
+    """``difference in <precision> between <start> and <end>``."""
+
+    precision: str
+    left: Expr
+    right: Expr
+
+
+@dataclass(slots=True)
+class BetweenExpr(Expr):
+    """``<operand> between <low> and <high>`` (inclusive value range)."""
+
+    operand: Expr
+    low: Expr
+    high: Expr
+
+
+@dataclass(slots=True)
+class IfExpr(Expr):
+    """``if <condition> then <then_expr> else <else_expr>``."""
+
+    condition: Expr
+    then_expr: Expr
+    else_expr: Expr
+
+
+@dataclass(slots=True)
+class CaseItem:
+    when_expr: Expr
+    then_expr: Expr
+
+
+@dataclass(slots=True)
+class CaseExpr(Expr):
+    """``case [<comparand>] when ... then ... [else ...] end``."""
+
+    items: list[CaseItem] = field(default_factory=list)
+    comparand: Expr | None = None
+    else_expr: Expr | None = None
 
 
 @dataclass(slots=True)

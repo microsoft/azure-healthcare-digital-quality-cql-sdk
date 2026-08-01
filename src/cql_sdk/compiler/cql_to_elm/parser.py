@@ -6,13 +6,18 @@ files plus a handful of generally useful constructs:
 * Header: ``library``, ``using``, ``include``, ``codesystem``, ``valueset``,
   ``code``, ``parameter``, ``context``, ``define``.
 * Expressions: literals (boolean / integer / decimal / string / null /
-  datetime / quantity), references (quoted + unquoted), property access,
+  datetime — including timezone offsets like ``Z`` / ``+01:00`` — / quantity),
+  references (quoted + unquoted), property access,
   function calls, unary operators (``not``, ``exists``, ``-``, ``is null``,
   ``is not null``, ``start of``, ``end of``, ``date from``, ``singleton from``,
   ``flatten``), binary operators (``and``, ``or``, ``=``, ``!=``, ``~``,
   ``<``, ``<=``, ``>``, ``>=``, ``+``, ``-``, ``*``, ``/``,
   ``in``, ``during``, ``overlaps``, ``before``, ``after``, ``ends during``,
-  ``starts during``), casts (``X as T``), interval constructors
+  ``starts during``), the ``X between low and high`` range operator,
+  ``duration in <p> of``/``between`` and ``difference in <p> between``,
+  conditional expressions (``if … then … else …`` and
+  ``case … when … then … else … end``), casts (``X as T``, including
+  model-qualified types such as ``FHIR.dateTime``), interval constructors
   (``Interval[a, b]``), list literals (``{...}``), retrieves
   (``[Encounter: "VS"]``), and query expressions (``alias where … sort …
   return …``).
@@ -21,6 +26,8 @@ Anything outside that subset raises :class:`CqlParseError`.
 """
 
 from __future__ import annotations
+
+from decimal import Decimal
 
 from cql_sdk.compiler.cql_to_elm import ast as A
 from cql_sdk.compiler.cql_to_elm.errors import CqlParseError
@@ -75,6 +82,28 @@ class _Parser:
             return False
         nxt = self._peek(1)
         return nxt.kind is TokenKind.KEYWORD and nxt.value == second
+
+    def _check_soft_keyword_pair(self, first: str, second: str) -> bool:
+        """Return True iff the next tokens are IDENT ``first`` then KEYWORD ``second``.
+
+        Used for CQL soft keywords such as ``duration`` / ``difference`` which
+        the lexer classifies as identifiers because they are not reserved.
+        """
+        if not self._check(TokenKind.IDENT, first):
+            return False
+        nxt = self._peek(1)
+        return nxt.kind is TokenKind.KEYWORD and nxt.value == second
+
+    def _expect_precision(self, context: str) -> str:
+        """Consume and return a date/time precision identifier (e.g. ``weeks``)."""
+        tok = self._advance()
+        if tok.kind not in (TokenKind.IDENT, TokenKind.KEYWORD):
+            raise CqlParseError(
+                f"Expected precision identifier after '{context}'",
+                line=tok.line,
+                column=tok.column,
+            )
+        return tok.value
 
     def _expect(self, kind: TokenKind, value: str | None = None) -> Token:
         tok = self._peek()
@@ -282,6 +311,16 @@ class _Parser:
     def _parse_type_specifier(self) -> A.TypeSpec:
         tok = self._advance()
         name = tok.value
+        # Model-qualified type names such as ``FHIR.dateTime`` or
+        # ``System.Quantity`` — fold the qualifier into the type name so the
+        # translator can map it to the correct ELM namespace.
+        while self._check(TokenKind.PUNCT, ".") and self._peek(1).kind in (
+            TokenKind.IDENT,
+            TokenKind.QUOTED_IDENT,
+            TokenKind.KEYWORD,
+        ):
+            self._advance()  # consume '.'
+            name = f"{name}.{self._advance().value}"
         argument: A.TypeSpec | None = None
         # Generic argument: Interval<DateTime>, List<Encounter>
         if self._check(TokenKind.OP, "<"):
@@ -326,6 +365,15 @@ class _Parser:
     def _parse_interval_relation(self) -> A.Expr:
         left = self._parse_additive()
         while True:
+            # "X between low and high" — inclusive value range. Bounds are
+            # expression terms (additive level) so the separator ``and`` is not
+            # a boolean conjunction. Sits tighter than comparison/equality.
+            if self._match(TokenKind.KEYWORD, "between"):
+                low = self._parse_additive()
+                self._expect_keyword("and")
+                high = self._parse_additive()
+                left = A.BetweenExpr(operand=left, low=low, high=high)
+                continue
             # "X is null" / "X is not null"
             if self._match(TokenKind.KEYWORD, "is"):
                 negated = self._match(TokenKind.KEYWORD, "not")
@@ -420,26 +468,31 @@ class _Parser:
         return operand
 
     def _parse_unary(self) -> A.Expr:
-        # ``duration in <precision> of <expr>`` is a single CQL operator with a
-        # precision argument; emit a dedicated AST node so the translator can
-        # produce a ``DurationBetween``-shaped ELM node.
-        if (
-            self._check(TokenKind.IDENT, "duration")
-            and self._peek(1).kind is TokenKind.KEYWORD
-            and self._peek(1).value == "in"
-        ):
+        # ``duration in <precision> of <interval>`` and the two-operand forms
+        # ``duration in <precision> between <a> and <b>`` /
+        # ``difference in <precision> between <a> and <b>`` are single CQL
+        # operators with a precision argument.
+        if self._check_soft_keyword_pair("duration", "in"):
             self._advance()  # duration
             self._advance()  # in
-            precision_tok = self._advance()
-            if precision_tok.kind not in (TokenKind.IDENT, TokenKind.KEYWORD):
-                raise CqlParseError(
-                    "Expected precision identifier after 'duration in'",
-                    line=precision_tok.line,
-                    column=precision_tok.column,
-                )
+            precision = self._expect_precision("duration in")
+            if self._match(TokenKind.KEYWORD, "between"):
+                left = self._parse_additive()
+                self._expect_keyword("and")
+                right = self._parse_additive()
+                return A.DurationBetween(precision=precision, left=left, right=right)
             self._expect_keyword("of")
             operand = self._parse_unary()
-            return A.DurationOf(precision=precision_tok.value, operand=operand)
+            return A.DurationOf(precision=precision, operand=operand)
+        if self._check_soft_keyword_pair("difference", "in"):
+            self._advance()  # difference
+            self._advance()  # in
+            precision = self._expect_precision("difference in")
+            self._expect_keyword("between")
+            left = self._parse_additive()
+            self._expect_keyword("and")
+            right = self._parse_additive()
+            return A.DifferenceBetween(precision=precision, left=left, right=right)
 
         # Multi-word unaries.
         if self._check_keyword_pair("start", "of"):
@@ -586,6 +639,10 @@ class _Parser:
             return self._parse_retrieve()
         if tok.kind is TokenKind.KEYWORD and tok.value == "Interval":
             return self._parse_interval_ctor()
+        if tok.kind is TokenKind.KEYWORD and tok.value == "if":
+            return self._parse_if()
+        if tok.kind is TokenKind.KEYWORD and tok.value == "case":
+            return self._parse_case()
         if tok.kind is TokenKind.KEYWORD and tok.value == "true":
             self._advance()
             return A.BoolLit(True)
@@ -657,6 +714,39 @@ class _Parser:
             return A.FunctionCall(name=head, args=args, library=library_alias)
         return A.Ref(name=head, library=library_alias)
 
+    def _parse_if(self) -> A.IfExpr:
+        self._expect_keyword("if")
+        condition = self._parse_expression()
+        self._expect_keyword("then")
+        then_expr = self._parse_expression()
+        self._expect_keyword("else")
+        else_expr = self._parse_expression()
+        return A.IfExpr(condition=condition, then_expr=then_expr, else_expr=else_expr)
+
+    def _parse_case(self) -> A.CaseExpr:
+        self._expect_keyword("case")
+        comparand: A.Expr | None = None
+        if not self._check(TokenKind.KEYWORD, "when"):
+            comparand = self._parse_expression()
+        items: list[A.CaseItem] = []
+        while self._match(TokenKind.KEYWORD, "when"):
+            when_expr = self._parse_expression()
+            self._expect_keyword("then")
+            then_expr = self._parse_expression()
+            items.append(A.CaseItem(when_expr=when_expr, then_expr=then_expr))
+        if not items:
+            tok = self._peek()
+            raise CqlParseError(
+                "Expected at least one 'when' branch in case expression",
+                line=tok.line,
+                column=tok.column,
+            )
+        else_expr: A.Expr | None = None
+        if self._match(TokenKind.KEYWORD, "else"):
+            else_expr = self._parse_expression()
+        self._expect_keyword("end")
+        return A.CaseExpr(items=items, comparand=comparand, else_expr=else_expr)
+
     def _parse_list_literal(self) -> A.ListCtor:
         self._expect_punct("{")
         elements: list[A.Expr] = []
@@ -714,7 +804,9 @@ class _Parser:
         month = int(date_components[1]) if len(date_components) > 1 else None
         day = int(date_components[2]) if len(date_components) > 2 else None
         hour = minute = second = millisecond = None
+        timezone_offset: str | None = None
         if time_part:
+            time_part, timezone_offset = _split_timezone(time_part)
             time_clean = time_part
             ms_part: str | None = None
             if "." in time_clean:
@@ -741,7 +833,26 @@ class _Parser:
             minute=minute,
             second=second,
             millisecond=millisecond,
+            timezone_offset=timezone_offset,
         )
+
+
+def _split_timezone(time_part: str) -> tuple[str, str | None]:
+    """Split a CQL time component from its optional timezone offset.
+
+    Returns ``(time_without_offset, offset_hours_text)`` where the offset is
+    expressed as decimal hours from UTC (``"0"`` for ``Z``, ``"-5"`` for
+    ``-05:00``, ``"5.5"`` for ``+05:30``) or ``None`` when no offset is present.
+    """
+    if time_part.endswith("Z"):
+        return time_part[:-1], "0"
+    for i, ch in enumerate(time_part):
+        if i > 0 and ch in "+-":
+            sign = Decimal(-1) if ch == "-" else Decimal(1)
+            hh, _, mm = time_part[i + 1 :].partition(":")
+            hours = Decimal(int(hh or 0)) + (Decimal(int(mm)) / Decimal(60) if mm else Decimal(0))
+            return time_part[:i], format((sign * hours).normalize(), "f")
+    return time_part, None
 
 
 def parse(tokens: list[Token]) -> A.Library:

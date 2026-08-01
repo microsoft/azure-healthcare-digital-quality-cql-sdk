@@ -85,3 +85,70 @@ def test_parse_quantity_literal():
     assert isinstance(greater.right, A.QuantityLit)
     assert greater.right.value == "9.0"
     assert greater.right.unit == "%"
+
+
+_HDR = "library X version '1'\nusing FHIR version '4.0.1'\ncontext Patient\n"
+
+
+def _first_stmt(src: str) -> A.Expr:
+    return parse(tokenize(_HDR + src)).statements[0].expression
+
+
+@pytest.mark.unit
+def test_parse_between_operator():
+    expr = _first_stmt("define A: x between 50 and 74")
+    assert isinstance(expr, A.BetweenExpr)
+    assert isinstance(expr.operand, A.Ref) and expr.operand.name == "x"
+    assert isinstance(expr.low, A.IntLit) and expr.low.value == 50
+    assert isinstance(expr.high, A.IntLit) and expr.high.value == 74
+
+
+@pytest.mark.unit
+def test_parse_if_then_else():
+    expr = _first_stmt("define A: if x then 'Yes' else 'No'")
+    assert isinstance(expr, A.IfExpr)
+    assert isinstance(expr.condition, A.Ref)
+    assert isinstance(expr.then_expr, A.StringLit) and expr.then_expr.value == "Yes"
+    assert isinstance(expr.else_expr, A.StringLit) and expr.else_expr.value == "No"
+
+
+@pytest.mark.unit
+def test_parse_case_when_then_else():
+    expr = _first_stmt("define A: case when x then 1 when y then 2 else 3 end")
+    assert isinstance(expr, A.CaseExpr)
+    assert expr.comparand is None
+    assert len(expr.items) == 2
+    assert isinstance(expr.items[0].when_expr, A.Ref)
+    assert isinstance(expr.items[1].then_expr, A.IntLit)
+    assert isinstance(expr.else_expr, A.IntLit) and expr.else_expr.value == 3
+
+
+@pytest.mark.unit
+def test_parse_difference_and_duration_between():
+    diff = _first_stmt("define A: difference in weeks between x and y")
+    assert isinstance(diff, A.DifferenceBetween)
+    assert diff.precision == "weeks"
+    assert isinstance(diff.left, A.Ref) and isinstance(diff.right, A.Ref)
+
+    dur = _first_stmt("define A: duration in days between x and y")
+    assert isinstance(dur, A.DurationBetween)
+    assert dur.precision == "days"
+
+
+@pytest.mark.unit
+def test_parse_qualified_cast_type():
+    expr = _first_stmt("define A: x as FHIR.dateTime")
+    assert isinstance(expr, A.Cast)
+    assert expr.target.name == "FHIR.dateTime"
+
+
+@pytest.mark.unit
+def test_parse_datetime_timezone_offset():
+    z = _first_stmt("define A: @2026-01-01T00:00:00Z")
+    assert isinstance(z, A.DateTimeLit) and z.timezone_offset == "0"
+    plus = _first_stmt("define A: @2026-06-01T12:30:00.500+05:30")
+    assert isinstance(plus, A.DateTimeLit) and plus.timezone_offset == "5.5"
+    minus = _first_stmt("define A: @2026-03-01T08:00:00-05:00")
+    assert isinstance(minus, A.DateTimeLit) and minus.timezone_offset == "-5"
+    naive = _first_stmt("define A: @2026-03-01T08:00:00")
+    assert isinstance(naive, A.DateTimeLit) and naive.timezone_offset is None

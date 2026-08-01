@@ -74,3 +74,82 @@ def test_translate_quantity_literal_preserves_text():
     assert '"type": "Quantity"' in body
     assert '"value": "9.0"' in body
     assert '"unit": "%"' in body
+
+
+_HDR = "library X version '1'\nusing FHIR version '4.0.1'\ncontext Patient\n"
+
+
+def _expr(src: str) -> dict:
+    elm = translate(_HDR + src)
+    return elm["library"]["statements"]["def"][0]["expression"]
+
+
+@pytest.mark.unit
+def test_translate_between_expands_to_and_of_comparisons():
+    node = _expr("define A: x between 50 and 74")
+    assert node["type"] == "And"
+    kinds = [op["type"] for op in node["operand"]]
+    assert kinds == ["GreaterOrEqual", "LessOrEqual"]
+    assert node["operand"][0]["operand"][1]["value"] == "50"
+    assert node["operand"][1]["operand"][1]["value"] == "74"
+
+
+@pytest.mark.unit
+def test_translate_if_and_case():
+    if_node = _expr("define A: if x then 'Y' else 'N'")
+    assert if_node["type"] == "If"
+    assert {"condition", "then", "else"} <= set(if_node)
+
+    case_node = _expr("define A: case when x then 1 else 2 end")
+    assert case_node["type"] == "Case"
+    assert case_node["caseItem"][0]["when"]["type"] == "ExpressionRef"
+    assert case_node["else"]["value"] == "2"
+
+
+@pytest.mark.unit
+def test_translate_difference_and_duration_between():
+    diff = _expr("define A: difference in weeks between x and y")
+    assert diff["type"] == "DifferenceBetween"
+    assert diff["precision"] == "week"
+    assert len(diff["operand"]) == 2
+
+    dur = _expr("define A: duration in days between x and y")
+    assert dur["type"] == "DurationBetween"
+    assert dur["precision"] == "day"
+
+
+@pytest.mark.unit
+def test_translate_exists_and_now_function_forms():
+    exists_node = _expr("define A: Exists([Encounter])")
+    assert exists_node["type"] == "Exists"
+    assert isinstance(exists_node["operand"], dict)  # single operand, not a list
+
+    now_node = _expr("define A: Now()")
+    assert now_node == {"type": "Now"}
+
+
+@pytest.mark.unit
+def test_translate_datetime_timezone_offset():
+    z = _expr("define A: @2026-01-01T00:00:00Z")
+    assert z["timezoneOffset"]["value"] == "0"
+    assert z["timezoneOffset"]["valueType"].endswith("Decimal")
+    plus = _expr("define A: @2026-06-01T12:30:00+05:30")
+    assert plus["timezoneOffset"]["value"] == "5.5"
+
+
+@pytest.mark.unit
+def test_translate_qualified_cast_type_maps_to_fhir_namespace():
+    node = _expr("define A: x as FHIR.dateTime")
+    assert node["type"] == "As"
+    assert node["asType"] == "{http://hl7.org/fhir}dateTime"
+
+
+@pytest.mark.unit
+def test_new_constructs_load_through_sdk_loader():
+    src = _HDR + (
+        "define A: if Exists([Encounter]) then 'Y' else 'N'\n"
+        "define B: case when true then 1 else 0 end\n"
+        "define C: @2026-01-01T00:00:00Z\n"
+    )
+    lib = load_library_from_string(json.dumps(translate(src)))
+    assert {"A", "B", "C"} <= set(lib.definitions)

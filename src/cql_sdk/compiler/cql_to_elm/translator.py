@@ -227,6 +227,13 @@ def _translate_type_specifier(ts: A.TypeSpec) -> dict[str, Any]:
 
 def _qualify_type(name: str) -> str:
     """Wrap a primitive CQL type name in the ELM URN namespace."""
+    # Model-qualified names such as ``System.Quantity`` or ``FHIR.dateTime``
+    # resolve against the model's namespace using the local type name.
+    if "." in name:
+        model, _, local = name.partition(".")
+        if model == "System":
+            return f"{_ELM_PRIMITIVE}{local}"
+        return f"{_FHIR_NS}{local}"
     primitives = {
         "Boolean", "Integer", "Decimal", "String", "Quantity", "Ratio",
         "DateTime", "Date", "Time", "Code", "Concept", "Any",
@@ -357,6 +364,78 @@ def _translate_expression(
                 {"type": "End", "operand": operand},
             ],
         }
+    if isinstance(expr, A.DurationBetween):
+        return {
+            "type": "DurationBetween",
+            "precision": _normalize_precision(expr.precision),
+            "operand": [
+                _translate_expression(expr.left, symbols, using_uris=using_uris),
+                _translate_expression(expr.right, symbols, using_uris=using_uris),
+            ],
+        }
+    if isinstance(expr, A.DifferenceBetween):
+        return {
+            "type": "DifferenceBetween",
+            "precision": _normalize_precision(expr.precision),
+            "operand": [
+                _translate_expression(expr.left, symbols, using_uris=using_uris),
+                _translate_expression(expr.right, symbols, using_uris=using_uris),
+            ],
+        }
+    if isinstance(expr, A.BetweenExpr):
+        operand = _translate_expression(expr.operand, symbols, using_uris=using_uris)
+        return {
+            "type": "And",
+            "operand": [
+                {
+                    "type": "GreaterOrEqual",
+                    "operand": [
+                        operand,
+                        _translate_expression(expr.low, symbols, using_uris=using_uris),
+                    ],
+                },
+                {
+                    "type": "LessOrEqual",
+                    "operand": [
+                        operand,
+                        _translate_expression(expr.high, symbols, using_uris=using_uris),
+                    ],
+                },
+            ],
+        }
+    if isinstance(expr, A.IfExpr):
+        return {
+            "type": "If",
+            "condition": _translate_expression(expr.condition, symbols, using_uris=using_uris),
+            "then": _translate_expression(expr.then_expr, symbols, using_uris=using_uris),
+            "else": _translate_expression(expr.else_expr, symbols, using_uris=using_uris),
+        }
+    if isinstance(expr, A.CaseExpr):
+        case_entry: dict[str, Any] = {
+            "type": "Case",
+            "caseItem": [
+                {
+                    "type": "CaseItem",
+                    "when": _translate_expression(
+                        item.when_expr, symbols, using_uris=using_uris
+                    ),
+                    "then": _translate_expression(
+                        item.then_expr, symbols, using_uris=using_uris
+                    ),
+                }
+                for item in expr.items
+            ],
+            "else": (
+                _translate_expression(expr.else_expr, symbols, using_uris=using_uris)
+                if expr.else_expr is not None
+                else {"type": "Null"}
+            ),
+        }
+        if expr.comparand is not None:
+            case_entry["comparand"] = _translate_expression(
+                expr.comparand, symbols, using_uris=using_uris
+            )
+        return case_entry
     if isinstance(expr, A.ListCtor):
         return {
             "type": "List",
@@ -399,6 +478,12 @@ def _translate_datetime(d: A.DateTimeLit) -> dict[str, Any]:
             out["second"] = _lit(d.second)
         if d.millisecond is not None:
             out["millisecond"] = _lit(d.millisecond)
+        if d.timezone_offset is not None:
+            out["timezoneOffset"] = {
+                "type": "Literal",
+                "value": d.timezone_offset,
+                "valueType": f"{_ELM_PRIMITIVE}Decimal",
+            }
     return out
 
 
@@ -436,6 +521,9 @@ def _translate_function_call(
         "First": "First",
         "Count": "Count",
         "Length": "Length",
+        "Exists": "Exists",
+        "Now": "Now",
+        "Today": "Today",
         "ToConcept": "ToConcept",
         "Coalesce": "Coalesce",
         "AgeInYears": "CalculateAge",
@@ -446,6 +534,13 @@ def _translate_function_call(
         # Operators that take a single source expression use "source", others use "operand".
         if elm_type in ("Last", "First", "Count", "Length"):
             return {"type": elm_type, "source": operands[0] if operands else {"type": "Null"}}
+        # ``Exists(...)`` is the function-call spelling of the ``exists`` operator
+        # and takes a single (non-list) operand.
+        if elm_type == "Exists":
+            return {"type": "Exists", "operand": operands[0] if operands else {"type": "Null"}}
+        # Niladic date/time operators carry no operand.
+        if elm_type in ("Now", "Today"):
+            return {"type": elm_type}
         return {"type": elm_type, "operand": operands}
 
     entry: dict[str, Any] = {
