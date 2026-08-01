@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ms-cql-sdk"
-version = "0.6.0"
+version = "0.6.1"
 description = "Modular Python CQL SDK (ELM loading, runtime, invocation, FHIR and Spark adapters)."
 readme = "README.md"
 license = { file = "LICENSE" }

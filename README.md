@@ -29,6 +29,27 @@ The same applies to other proprietary measure stewards (for example, CMS
 eCQM artifacts may have their own usage terms, and any LOINC, SNOMED CT,
 RxNorm, ICD, or CPT content carries its own licensing).
 
+## What's new in 0.6.1
+
+- README: surface the 0.6.0 release notes on the PyPI project page (no
+  code changes).
+
+## What's new in 0.6.0
+
+- **Expanded CQL → ELM front-end** for parity with common Firely CQL SDK
+  constructs:
+  - `DateTime` literals with timezone offsets (`Z`, `+hh:mm`, `-hh:mm`).
+  - The `X between low and high` range operator.
+  - Conditional expressions: `if ... then ... else ...` and
+    `case ... when ... then ... [else ...] end`.
+  - `duration in <precision> between` and
+    `difference in <precision> between`.
+  - Model-qualified cast types such as `X as FHIR.dateTime`.
+  - Function-call forms `Exists(...)`, `Now()`, `Today()`.
+- Runtime additions: `Now`, `Today`, `DurationBetween` and
+  `DifferenceBetween` operators, plus case-insensitive `as` coercion for
+  FHIR primitive types.
+
 ## What's new in 0.5.0
 
 - **DQM (FHIR / QI-Core) measure package evaluation** via the new
