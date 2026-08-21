@@ -29,6 +29,12 @@ narrow interfaces defined in `cql_sdk.abstractions`.
                        | context, ops,  |
                        | comparers      |
                        +----------------+
+
+                       +--------------------------+
+                       | cql_sdk.postgres         |
+                       | SQL compiler / executor  |
+                       | FHIR JSONB store         |
+                       +--------------------------+
 ```
 
 ## Layers
@@ -58,6 +64,9 @@ narrow interfaces defined in `cql_sdk.abstractions`.
    writers. Produces artifacts consumable by downstream deployment.
 9. **`cli`** — Typer application: `compile`, `inspect`, `validate`, `run`,
    `package`.
+10. **`postgres`** — Primary production execution backend. Compiles loaded
+  definitions to parameterized PostgreSQL SQL, stores FHIR resources in
+  JSONB, and resolves retrieve terminology through relational joins.
 
 ## Data flow
 
@@ -67,8 +76,14 @@ Two equivalent entry paths converge at the loaded `Library`:
   `elm.serialization.loader` → `elm.models.Library`.
 - `.elm.json` artifact → `elm.serialization.loader` → `elm.models.Library`.
 
-From there: `Library` → `invocation.toolkit.InvocationToolkit`
-→ `runtime.context.RuntimeContext` → `runtime.operators.evaluate` → result.
+The primary production path is: `Library` → `postgres.PostgresCompiler` →
+parameterized SQL → PostgreSQL → result. The in-memory path through
+`InvocationToolkit` and `RuntimeContext` remains for compatibility and tests.
+
+PostgreSQL uses two tables:
+
+- `fhir_resources(resource_type, resource_id, patient_id, resource jsonb)`
+- `terminology_codes(value_set_url, value_set_version, system, code, display)`
 
 ## Boundaries
 

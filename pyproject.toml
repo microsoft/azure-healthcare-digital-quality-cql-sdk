@@ -4,13 +4,13 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ms-cql-sdk"
-version = "0.6.1"
-description = "Modular Python CQL SDK (ELM loading, runtime, invocation, FHIR and Spark adapters)."
+version = "0.7.0"
+description = "Compile and execute Clinical Quality Language on PostgreSQL-backed FHIR data."
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.11"
 authors = [{ name = "cql-sdk authors" }]
-keywords = ["cql", "elm", "fhir", "healthcare", "quality-measures"]
+keywords = ["cql", "elm", "fhir", "healthcare", "postgresql", "quality-measures", "sql"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
@@ -30,6 +30,9 @@ dependencies = [
 [project.optional-dependencies]
 fhir = [
     "fhir.resources>=7.1",
+]
+postgres = [
+    "pg8000>=1.31",
 ]
 spark = [
     "pyspark>=3.5",
@@ -61,6 +64,9 @@ Issues = "https://github.com/microsoft/azure-healthcare-digital-quality-cql-sdk/
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/cql_sdk"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"tests/fixtures/valuesets" = "cql_sdk/data/valuesets"
 
 [tool.hatch.build.targets.sdist]
 include = ["src", "tests", "README.md", "LICENSE", "pyproject.toml"]
@@ -120,7 +126,7 @@ addopts = "-ra --strict-markers --strict-config"
 testpaths = ["tests"]
 markers = [
     "unit: fast, isolated unit tests",
-    "integration: end-to-end ELM loading / invocation tests",
+    "integration: end-to-end CQL loading and backend execution tests",
     "spark: requires pyspark (install with `uv sync --extra spark`)",
 ]
 filterwarnings = [

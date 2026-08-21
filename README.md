@@ -4,14 +4,20 @@
 >
 > Published at <https://pypi.org/project/ms-cql-sdk/>. The Python import name remains `cql_sdk`.
 
-A modular Python SDK for working with **Clinical Quality Language (CQL)** and
-its compiled form **ELM** (Expression Logical Model). Inspired by the layering
-of the Firely C# CQL SDK, but designed idiomatically for Python and for modern
-data platforms (standalone, containers, PySpark, Microsoft Fabric).
+A Python SDK that compiles **Clinical Quality Language (CQL)** definitions to
+parameterized PostgreSQL SQL and executes them over FHIR R4 resources stored
+as JSONB. ELM remains an internal compiler representation and a compatibility
+surface for existing consumers.
 
-> Status: early scaffold. The architecture, public API surface and extension
-> points are deliberately sketched so they can grow toward a fuller CQL
-> engine without breaking consumers.
+## What's new in 0.7.0
+
+- `PostgresCompiler` translates CQL/ELM definitions to parameterized SQL.
+- `PostgresExecutor` runs definitions against PostgreSQL 16.
+- `PostgresFHIRStore` initializes the FHIR JSONB schema, atomically replaces
+  patient Bundles, and loads the bundled expanded ValueSets.
+- All definitions in the platform's CMS122v11, CMS165v9, and ePC-02 measures
+  compile and execute as SQL.
+- The prior in-memory Python ELM runtime remains available for compatibility.
 
 ## Disclaimer
 
@@ -120,7 +126,9 @@ RxNorm, ICD, or CPT content carries its own licensing).
 
 ## Why this SDK
 
-- Pure-Python core for ELM loading, runtime context, operators, invocation.
+- PostgreSQL-native execution for set-based clinical quality evaluation.
+- Parameterized SQL over an indexed FHIR JSONB and terminology schema.
+- Pure-Python CQL parser with ELM used as an internal intermediate form.
 - Optional FHIR integration (retrieval, type conversion, terminology).
 - Optional Spark / Microsoft Fabric integration (the *same* core package
   runs unchanged in both environments).
@@ -138,6 +146,7 @@ RxNorm, ICD, or CPT content carries its own licensing).
  ├── compiler/       # Expression planner, bindings, type manager
  ├── invocation/     # High-level toolkit / invoker / library registry (PUBLIC API)
  ├── fhir/           # Optional FHIR adapters
+ ├── postgres/       # CQL-to-SQL compiler, executor, schema, and FHIR store
  ├── spark/          # Optional Spark / Fabric adapters
  ├── packaging/      # Library + resource packaging primitives
  ├── cli/            # Typer CLI (`cql-sdk`)
@@ -160,6 +169,7 @@ uv sync
 
 ```bash
 uv sync --extra fhir
+uv sync --extra postgres   # pulls pg8000; required for PostgreSQL execution
 uv sync --extra spark        # pulls pyspark; not required for base install
 uv sync --extra dev --extra test
 ```
@@ -196,6 +206,33 @@ Or get the raw ELM JSON via the lower-level entry point:
 from cql_sdk.compiler.cql_to_elm import compile_file
 elm = compile_file("path/to/Measure.cql")
 ```
+
+### Execute CQL on PostgreSQL
+
+```python
+from cql_sdk.api import execute_library_on_postgres, load_library_from_cql
+from cql_sdk.postgres import PostgresFHIRStore
+
+database_url = "postgresql://dq@localhost:5432/dq"
+# Set PGPASSWORD through the process environment or a secret provider.
+store = PostgresFHIRStore(database_url=database_url)
+store.initialize()
+store.load_value_sets()
+store.replace_patient_bundle("patient-1", bundle)
+
+library = load_library_from_cql("path/to/Measure.cql")
+result = execute_library_on_postgres(
+  library,
+  definition="Initial Population",
+  database_url=database_url,
+  patient_id="patient-1",
+  parameters={"Measurement Period": (period_start, period_end)},
+)
+```
+
+Use `compile_cql_to_sql(...)` when SQL generation is needed without execution.
+All literal values, patient identifiers, JSON paths, and terminology values
+are emitted as bind parameters.
 
 ### Use the CLI
 

@@ -15,6 +15,10 @@ Top-level convenience functions.
 | `load_library_from_cql_text(text)`| Compile a CQL source string and load it.           |
 | `create_context(**)`              | Build a default `RuntimeContext`.                  |
 | `invoke(library, ...)`            | Evaluate a named definition on a loaded library.   |
+| `compile_cql_to_sql(text, ...)`   | Compile CQL text to parameterized PostgreSQL SQL.  |
+| `compile_library_to_sql(lib, ...)`| Compile a loaded library definition to SQL.        |
+| `execute_cql_on_postgres(text, ...)` | Compile and execute CQL on PostgreSQL.           |
+| `execute_library_on_postgres(lib, ...)` | Execute a loaded definition on PostgreSQL.    |
 
 ## `cql_sdk.compiler.cql_to_elm`
 
@@ -58,6 +62,23 @@ The toolkit hides:
 - operator registry wiring
 - result caching
 - ELM serializer compatibility
+
+This is the compatibility in-memory runtime. New production integrations
+should use `cql_sdk.postgres`.
+
+## `cql_sdk.postgres` (optional extra: `postgres`)
+
+- `PostgresCompiler` — compile a loaded `Library` definition to a
+  `CompiledQuery` containing SQL and positional bind parameters.
+- `PostgresExecutor` — compile and execute one definition through a supplied
+  DB-API connection or PostgreSQL URL.
+- `PostgresFHIRStore` — initialize schema, load expanded ValueSets, and upsert
+  or atomically replace patient FHIR Bundles.
+- `UnsupportedElmError` — fail-fast error for ELM constructs that cannot be
+  represented by the SQL backend.
+
+PostgreSQL URLs may omit the password. In that form, the driver reads it from
+`PGPASSWORD`, which is preferred for deployed secret management.
 
 ## `cql_sdk.runtime.context.RuntimeContext`
 
