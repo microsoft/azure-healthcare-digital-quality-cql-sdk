@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ms-cql-sdk"
-version = "0.7.0"
-description = "Compile and execute Clinical Quality Language on PostgreSQL-backed FHIR data."
+version = "0.8.0"
+description = "Compile and execute Clinical Quality Language anywhere Python runs."
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.11"

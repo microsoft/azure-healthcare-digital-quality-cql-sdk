@@ -4,10 +4,19 @@
 >
 > Published at <https://pypi.org/project/ms-cql-sdk/>. The Python import name remains `cql_sdk`.
 
-A Python SDK that compiles **Clinical Quality Language (CQL)** definitions to
-parameterized PostgreSQL SQL and executes them over FHIR R4 resources stored
-as JSONB. ELM remains an internal compiler representation and a compatibility
-surface for existing consumers.
+Compile and execute Clinical Quality Language anywhere Python runs.
+
+A Python SDK for **Clinical Quality Language (CQL)** with an in-memory ELM
+runtime, optional PostgreSQL execution over FHIR R4 resources stored as JSONB,
+and optional Spark / Microsoft Fabric adapters. ELM remains an internal compiler
+representation and a compatibility surface for existing consumers.
+
+## What's new in 0.8.0
+
+- Updated the package headline to reflect the SDK's Python execution model,
+  with optional PostgreSQL and Spark / Microsoft Fabric integrations.
+- Dependency and CI updates, including smoke tests for the committed
+  `virtualenv` and `filelock` versions.
 
 ## What's new in 0.7.0
 
