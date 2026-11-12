@@ -31,6 +31,9 @@ uv sync --extra dev --extra test
 | Build distributions  | `uv build`                              |
 | Run CLI              | `uv run cql-sdk --help`                 |
 
+CI also creates a virtual environment from the committed lockfile before the standard sync,
+exercising the locked `virtualenv` and `filelock` versions.
+
 ## Test markers
 
 - `unit` — fast, isolated (default)

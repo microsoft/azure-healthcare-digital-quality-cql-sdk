@@ -21,6 +21,11 @@ jobs:
       - name: Set up Python
         run: uv python install 3.12
 
+      - name: Smoke test locked developer tools
+        run: |
+          uv sync --frozen --extra dev --extra test
+          uv run --frozen --no-sync python -m virtualenv --no-download --no-periodic-update "$RUNNER_TEMP/virtualenv-smoke"
+
       - name: Sync (dev + test)
         run: uv sync --extra dev --extra test
 
