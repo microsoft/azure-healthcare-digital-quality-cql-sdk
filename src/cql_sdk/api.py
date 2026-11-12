@@ -32,11 +32,16 @@ from cql_sdk.dqm.results import MeasureResult
 from cql_sdk.elm.models.library import Library
 from cql_sdk.elm.serialization.loader import load_library_from_path, load_library_from_string
 from cql_sdk.invocation.toolkit import InvocationToolkit
+from cql_sdk.postgres import CompiledQuery, PostgresCompiler, PostgresExecutor
 from cql_sdk.runtime.context import RuntimeContext
 
 __all__ = [
+    "compile_cql_to_sql",
+    "compile_library_to_sql",
     "create_context",
     "evaluate_measure_package",
+    "execute_cql_on_postgres",
+    "execute_library_on_postgres",
     "invoke",
     "load_library",
     "load_library_from_cql",
@@ -66,6 +71,86 @@ def load_library_from_cql_text(text: str) -> Library:
     """Compile a CQL source string and return the resulting Library."""
     elm = translate(text)
     return load_library_from_string(json.dumps(elm))
+
+
+def compile_library_to_sql(
+    library: Library,
+    *,
+    definition: str,
+    parameters: dict[str, Any] | None = None,
+    patient_id: str | None = None,
+    schema: str = "public",
+) -> CompiledQuery:
+    """Compile a loaded library definition into parameterized PostgreSQL SQL."""
+    return PostgresCompiler(
+        library,
+        parameters=parameters,
+        patient_id=patient_id,
+        schema=schema,
+    ).compile(definition)
+
+
+def compile_cql_to_sql(
+    text: str,
+    *,
+    definition: str,
+    parameters: dict[str, Any] | None = None,
+    patient_id: str | None = None,
+    schema: str = "public",
+) -> CompiledQuery:
+    """Compile CQL source text directly into parameterized PostgreSQL SQL."""
+    return compile_library_to_sql(
+        load_library_from_cql_text(text),
+        definition=definition,
+        parameters=parameters,
+        patient_id=patient_id,
+        schema=schema,
+    )
+
+
+def execute_library_on_postgres(
+    library: Library,
+    *,
+    definition: str,
+    database_url: str | None = None,
+    connection: Any | None = None,
+    parameters: dict[str, Any] | None = None,
+    patient_id: str | None = None,
+    schema: str = "public",
+) -> Any:
+    """Compile and execute a loaded library definition on PostgreSQL."""
+    return PostgresExecutor(
+        connection=connection,
+        database_url=database_url,
+        schema=schema,
+    ).execute(
+        library,
+        definition=definition,
+        parameters=parameters,
+        patient_id=patient_id,
+    )
+
+
+def execute_cql_on_postgres(
+    text: str,
+    *,
+    definition: str,
+    database_url: str | None = None,
+    connection: Any | None = None,
+    parameters: dict[str, Any] | None = None,
+    patient_id: str | None = None,
+    schema: str = "public",
+) -> Any:
+    """Compile CQL source text and execute a definition on PostgreSQL."""
+    return execute_library_on_postgres(
+        load_library_from_cql_text(text),
+        definition=definition,
+        database_url=database_url,
+        connection=connection,
+        parameters=parameters,
+        patient_id=patient_id,
+        schema=schema,
+    )
 
 
 def create_context(**overrides: Any) -> RuntimeContext:
